@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+venv311/
+.env/
+.env.bak/
+
+# VSCode settings (optional)
+.vscode/
+
+# macOS, Windows, Linux stuff
+.DS_Store
+Thumbs.db
+
+# Logs and local data
+*.log
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore your IDE/workspace settings (optional)
+.idea/
+*.sublime-workspace
+*.sublime-project
