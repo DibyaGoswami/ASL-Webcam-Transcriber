@@ -7,23 +7,40 @@ def main():
     if not cap.isOpened():
         print("Error: Could not open webcam.")
         return
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    # Loop to continuously get frames from the webcam
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Could not read frame.")
-            break
+    m_hands = m.solutions.hands
+    m_drawings = m.solutions.drawing_utils
 
-        # Edit output frame
-        frame = cv2.flip(frame, 1)
-        frame = cv2.resize(frame, (960, 720))
+    with m_hands.Hands(
+        static_image_mode = False,
+        max_num_hands = 2,
+        min_detection_confidence = 0.7,
+        min_tracking_confidence = 0.7
+    ) as hands:
 
-        # Display the frame
-        cv2.imshow("Webcam", frame)
+        # Loop to continuously get frames from the webcam
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Could not read frame.")
+                break
 
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
+            # Edit output frame
+            frame = cv2.flip(frame, 1)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = hands.process(rgb_frame)
+
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    m_drawings.draw_landmarks(frame, hand_landmarks, m_hands.HAND_CONNECTIONS)
+
+            # Display the frame
+            cv2.imshow("Webcam", frame)
+
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
 
     cap.release()
     cv2.destroyAllWindows()
