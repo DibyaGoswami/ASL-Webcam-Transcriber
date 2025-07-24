@@ -1,44 +1,51 @@
-import cv2 
-import mediapipe as m 
+import cv2
+import mediapipe as mp
+from ASL_signs import detect_sign
 
 def main():
-    #First to initialize the webcam
-    cap = cv2.VideoCapture(0) # 0 -> default camera
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        return
+    cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    m_hands = m.solutions.hands
-    m_drawings = m.solutions.drawing_utils
+    mp_hands = mp.solutions.hands
+    mp_drawing = mp.solutions.drawing_utils
 
-    with m_hands.Hands(
-        static_image_mode = False,
-        max_num_hands = 2,
-        min_detection_confidence = 0.7,
-        min_tracking_confidence = 0.7
+    prev_landmarks = None
+
+    with mp_hands.Hands(
+        static_image_mode=False,
+        max_num_hands=1,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
     ) as hands:
-
-        # Loop to continuously get frames from the webcam
         while True:
             ret, frame = cap.read()
             if not ret:
-                print("Error: Could not read frame.")
+                print("Can't receive frame (stream end?). Exiting ...")
                 break
 
-            # Edit output frame
             frame = cv2.flip(frame, 1)
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = hands.process(rgb_frame)
+            detected_sign = ""
 
             if results.multi_hand_landmarks:
                 for hand_landmarks in results.multi_hand_landmarks:
-                    m_drawings.draw_landmarks(frame, hand_landmarks, m_hands.HAND_CONNECTIONS)
+                    mp_drawing.draw_landmarks(
+                        frame, hand_landmarks, mp_hands.HAND_CONNECTIONS
+                    )
+                    landmarks = [(lm.x, lm.y, lm.z) for lm in hand_landmarks.landmark]
+                    sign = detect_sign(landmarks, prev_landmarks)
+                    if sign:
+                        detected_sign = sign
+                    prev_landmarks = landmarks
+            else:
+                prev_landmarks = None
 
-            # Display the frame
-            cv2.imshow("Webcam", frame)
+            cv2.putText(frame, detected_sign, (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
 
+            cv2.imshow('Webcam Feed', frame)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
 
