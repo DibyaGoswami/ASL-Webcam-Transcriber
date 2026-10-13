@@ -32,9 +32,15 @@ class HandTracker:
 def normalize(pts, side):
     # Position, distance from camera, and which hand is used shouldn't affect the label
     out = pts - pts[WRIST]
-    scale = np.linalg.norm(out[MIDDLE_MCP, :2])
-    if scale > 0:
-        out /= scale
     if side == "Left":
         out[:, 0] *= -1
-    return out.flatten()
+    v = out[MIDDLE_MCP, :2].copy()
+    scale = np.linalg.norm(v)
+    if scale > 0:
+        out /= scale
+        v /= scale
+    # Rotate so wrist->middle MCP points up; shape features become tilt-invariant
+    R = np.array([[-v[1], v[0]], [-v[0], -v[1]]])
+    out[:, :2] = out[:, :2] @ R.T
+    # Keep original direction: H/U, K/P, G/Q differ only by orientation
+    return np.concatenate([out.flatten(), v])
