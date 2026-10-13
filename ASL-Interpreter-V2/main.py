@@ -4,6 +4,7 @@ import time
 import cv2
 from landmarks import HandTracker, normalize
 from letter_signs import LetterClassification
+from create_strings import WordBuilder, is_open_five
 
 DATA_PATH = "data/letters.csv"
 
@@ -21,6 +22,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     tracker = HandTracker()
+    builder = WordBuilder()
     start = time.monotonic()
     last_ts = -1
     status = ""
@@ -47,14 +49,24 @@ def main():
         # so for when only one hand is up, for that's how the model has been trained so far, we will use letters.pt
         if len(hands) == 1:
             pts, side = hands[0]
-            prediction = classifier.predict(normalize(pts, side)) or ""
+            if is_open_five(pts):
+                prediction = "CLEAR"
+            else:
+                prediction = classifier.predict(normalize(pts, side)) or ""
         else:
             prediction = ""
+
+        if prediction == "CLEAR":
+            builder.finish()
+        else:
+            builder.update(prediction or None)
 
         cv2.putText(frame, status, (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
         cv2.putText(frame, prediction, (10, 130),
                     cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
+        cv2.putText(frame, "".join(builder.letters), (10, 180),
+                            cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
         cv2.imshow('Webcam Feed', frame)
 
         key = cv2.waitKey(1) & 0xFF
