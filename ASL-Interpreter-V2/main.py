@@ -17,7 +17,11 @@ def save_sample(vec, label):
 
 def main():
     classifier = LetterClassification("models/letters.pt")
-    cap = cv2.VideoCapture(0)
+    # DirectShow avoids MSMF stream-start failures and slow startup on Windows
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    if not cap.isOpened():
+        print("Cannot open camera (is another app using it?)")
+        return
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -28,18 +32,27 @@ def main():
     status = ""
     prediction = ""
 
+    frame_times = []
+    mp_times = []
+    mlp_times = []
+    perf_start = time.perf_counter()
+
     while True:
         ret, frame = cap.read()
         if not ret:
             print("Can't receive frame (stream end?). Exiting ...")
             break
 
+        t0 = time.perf_counter()
+        
         frame = cv2.flip(frame, 1)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # VIDEO mode requires strictly increasing timestamps
         ts = max(int((time.monotonic() - start) * 1000), last_ts + 1)
         last_ts = ts
+        t_mp = time.perf_counter()
         hands = tracker.detect(rgb_frame, ts)
+        mp_times.append(time.perf_counter() - t_mp)
 
         h, w = frame.shape[:2]
         for pts, _ in hands:
@@ -52,7 +65,10 @@ def main():
             if is_open_five(pts):
                 prediction = "CLEAR"
             else:
-                prediction = classifier.predict(normalize(pts, side)) or ""
+                vec = normalize(pts, side) # all this is doing is seperating the steps between predicting and normalizing to measure prediction timing without including time taken to normalize
+                t_mlp = time.perf_counter()
+                prediction = classifier.predict(vec) or ""
+                mlp_times.append(time.perf_counter() - t_mlp)
         else:
             prediction = ""
 
@@ -67,6 +83,7 @@ def main():
                     cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
         cv2.putText(frame, "".join(builder.letters), (10, 180),
                             cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
+        frame_times.append(time.perf_counter() - t0)
         cv2.imshow('Webcam Feed', frame)
 
         key = cv2.waitKey(1) & 0xFF
@@ -79,6 +96,16 @@ def main():
                 status = f"saved {chr(key).upper()}"
             else:
                 status = "need exactly 1 hand"
+
+    cap.release()
+    cv2.destroyAllWindows()
+    total = time.perf_counter() - perf_start
+    if frame_times:
+        print(f"Avg latency: {1000 * sum(frame_times) / len(frame_times):.1f} ms")
+        print(f"End-to-end FPS: {len(frame_times) / total:.1f}")
+        print(f"Hand tracking: {1000 * sum(mp_times) / len(mp_times):.1f} ms")
+    if mlp_times:
+        print(f"Letter model: {1000 * sum(mlp_times) / len(mlp_times):.2f} ms")
 
     tracker.close()
     cap.release()
